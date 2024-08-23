@@ -4,6 +4,7 @@ from torch import sin, cos, exp
 import math
 
 def LHS_pde(u, x, dim_set):
+
     v = torch.ones(u.shape).cuda()
     bs = x.size(0)
     ux = torch.autograd.grad(u, x, grad_outputs=v, create_graph=True)[0]
@@ -16,19 +17,13 @@ def LHS_pde(u, x, dim_set):
     return LHS
 
 def RHS_pde(x):
-    # Only simple3d case
-    x0 = x[:, 0:1]
-    x2 = x[:, 2:3]
-    result = 16 * x2 * (4 * x2 * torch.sin(x0)**2 * torch.cos(4 * x2 * torch.cos(x0)) - torch.sin(
-        4 * x2 * torch.cos(x0)) * torch.cos(x0)) + 64 * torch.cos(x0)**2 * torch.cos(4 * x2 * torch.cos(x0))
-    return result
+    bs = x.size(0)
+    dim = x.size(1)
+    return -dim*torch.ones(bs, 1).cuda()
 
 def true_solution(x):
-    # Only simple3d case
-    x0 = x[:, 0:1]
-    x2 = x[:, 2:3]
-    result = 4 * torch.cos(4 * x2 * torch.cos(x0))
-    return result
+    return 0.5*torch.sum(x**2, dim=1, keepdim=True)#1 / (2 * x[:, 0:1] + x[:, 1:2]-5)
+
 
 unary_functions = [lambda x: 0*x**2,
                    lambda x: 1+0*x**2,
