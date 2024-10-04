@@ -12,6 +12,7 @@ import function as func
 import argparse
 import random
 import math
+from datetime import datetime
 
 parser = argparse.ArgumentParser(description='NAS')
 
@@ -527,7 +528,7 @@ class Controller(torch.nn.Module):
             else:
                 action = torch.randint(0, structure_choice[idx], size=(batch_size, 1)).cuda()
             # print('old', action)
-            if args.greedy is not 0:
+            if args.greedy != 0:
                 for k in range(args.bs):
                     if np.random.rand(1)<args.greedy:
                         choice = random.choices(range(structure_choice[idx]), k=1)
@@ -566,7 +567,7 @@ def get_reward(bs, actions, learnable_tree, tree_params, tree_optim):
 
         reset_params(tree_params)
         tree_optim = torch.optim.Adam(tree_params, lr=0.001)
-        for _ in range(20):
+        for _ in range(1000):
             bd_pts = get_boundary(args.bdbs, dim)
             bc_true = func.true_solution(bd_pts)
             bd_nn = learnable_tree(bd_pts, bs_action)
@@ -577,7 +578,7 @@ def get_reward(bs, actions, learnable_tree, tree_params, tree_optim):
             loss.backward()
             tree_optim.step()
 
-        tree_optim = torch.optim.LBFGS(tree_params, lr=1, max_iter=20)
+        tree_optim = torch.optim.LBFGS(tree_params, lr=1, max_iter=200)
         print('---------------------------------- batch idx {} -------------------------------------'.format(bs_idx))
 
         error_hist = []
@@ -651,7 +652,8 @@ def train_controller(Controller, Controller_optim, trainable_tree, tree_params, 
         file_idx += 1
     file_name = file_name.format(file_idx)
     logger = Logger(file_name, title='')
-    logger.set_names(['iteration', 'loss', 'baseline', 'error', 'formula', 'error'])
+    logger.set_names(['timestamp', 'iteration', 'loss', 'baseline',
+                      'error', 'formula', 'error'])
 
     model = Controller
     model.train()
@@ -743,12 +745,12 @@ def train_controller(Controller, Controller_optim, trainable_tree, tree_params, 
         print(log)
         print('********************************************************************************************************')
         if (step + 1) % 1 == 0:
-            logger.append([step + 1, loss.item(), baseline, rewards.mean(), smallest_error, best_formula])
-
+            logger.append([datetime.now().strftime("%H:%M:%S"), step + 1, loss.item(), baseline,
+                                    rewards.mean(), smallest_error, best_formula])
     for candidate_ in candidates.candidates:
         print('error:{} action:{} formula:{}'.format(candidate_.error.item(), [v.item() for v in candidate_.action],
                                                      candidate_.expression))
-        logger.append([666, 0, 0, 0, candidate_.error.item(), candidate_.expression])
+        logger.append([datetime.now().strftime("%H:%M:%S"), 666, 0, 0, 0, candidate_.error.item(), candidate_.expression])
 
     finetune = 20000
     global count, leaves_cnt
@@ -783,7 +785,7 @@ def train_controller(Controller, Controller_optim, trainable_tree, tree_params, 
             count = 0
             suffix = 'Finetune-- Iter {current_iter} Error {error:.5f} Formula {formula}'.format(current_iter=current_iter, error=error, formula=formula)
             if (current_iter + 1) % 100 == 0:
-                logger.append([current_iter, 0, 0, 0, error.item(), formula])
+                logger.append([datetime.now().strftime("%H:%M:%S"),current_iter, 0, 0, 0, error.item(), formula])
 
             cosine_lr(tree_optim, 1e-2, current_iter, finetune)
             print(suffix)
@@ -791,7 +793,7 @@ def train_controller(Controller, Controller_optim, trainable_tree, tree_params, 
         numerators = []
         denominators = []
 
-        for i in range(1000):
+        for i in range(20): #LING PARAM
             print(i)
             x = (torch.rand(100000, args.dim).cuda()) * (args.right - args.left) + args.left
             sq_de = torch.mean((func.true_solution(x))**2)
@@ -838,3 +840,4 @@ if __name__ == '__main__':
             params.append(param)
 
     train_controller(controller, controller_optim, trainable_tree, params, hyperparams)
+
